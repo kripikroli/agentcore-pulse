@@ -1,0 +1,30 @@
+{
+  "name": "agentcore-pulse",
+  "version": "0.1.0",
+  "description": "Real-time observability dashboard for Amazon Bedrock AgentCore",
+  "type": "module",
+  "bin": {
+    "agentcore-pulse": "./src/cli.js"
+  },
+  "scripts": {
+    "start": "node src/cli.js --mode=live",
+    "test": "node --test 'src/**/*.test.js'"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "keywords": ["agentcore", "observability", "dashboard", "cloudwatch", "bedrock", "aws"],
+  "license": "MIT",
+  "files": ["src/", "public/", "README.md"],
+  "dependencies": {
+    "commander": "12.1.0",
+    "express": "4.21.2",
+    "ws": "8.18.0",
+    "open": "10.1.0",
+    "dotenv": "16.4.7",
+    "@aws-sdk/client-cloudwatch-logs": "3.712.0",
+    "@aws-sdk/client-dynamodb": "3.712.0",
+    "@aws-sdk/lib-dynamodb": "3.712.0",
+    "@aws-sdk/credential-providers": "3.712.0"
+  }
+}
