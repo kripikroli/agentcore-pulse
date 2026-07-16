@@ -49,17 +49,21 @@ export class HistoryCollector {
       return;
     }
 
+    this._consecutiveFailures = 0;
+
     try {
       this._initDDBClient();
       await this._fetchHistory();
     } catch (err) {
+      if (this._isCredentialError(err)) {
+        this._warn(`AWS credentials invalid: ${err.message}`);
+        this._warn('Run: aws sso login --profile ' + (this.profile || '<profile>'));
+        this._fallbackToSessionMode();
+        return;
+      }
       if (err.name === 'AccessDeniedException' || err.name === 'UnrecognizedClientException') {
         this._warn(`DynamoDB access denied: ${err.message}. Falling back to session mode.`);
-        this.sessionMode = true;
-        this._destroyDDBClient();
-        if (this.broadcaster) {
-          this.broadcaster.broadcast('history', { records: [] });
-        }
+        this._fallbackToSessionMode();
         return;
       }
       this._warn(`Failed to fetch initial history: ${err.message}. Will serve stale cache.`);
@@ -74,10 +78,23 @@ export class HistoryCollector {
     this.refreshInterval = setInterval(async () => {
       try {
         await this._fetchHistory();
+        this._consecutiveFailures = 0;
         if (this.broadcaster) {
           this.broadcaster.broadcast('history', { records: this.historyCache });
         }
       } catch (err) {
+        this._consecutiveFailures++;
+        if (this._isCredentialError(err)) {
+          this._warn('AWS credentials expired. Run: aws sso login --profile ' + (this.profile || '<profile>'));
+          this._fallbackToSessionMode();
+          return;
+        }
+        // After 3 consecutive failures, stop polling to avoid spam
+        if (this._consecutiveFailures >= 3) {
+          this._warn('3 consecutive failures — disabling DDB history polling. Serving session events only.');
+          this._fallbackToSessionMode();
+          return;
+        }
         this._warn(`History refresh failed: ${err.message}. Serving stale cache.`);
       }
     }, 60_000);
@@ -196,12 +213,44 @@ export class HistoryCollector {
       const result = await this.docClient.send(command);
       return result.Items || [];
     } catch (err) {
-      // Re-throw access errors so start() can catch and switch to session mode
-      if (err.name === 'AccessDeniedException' || err.name === 'UnrecognizedClientException') {
+      // Re-throw credential and access errors so start() can catch and switch to session mode
+      if (this._isCredentialError(err) || err.name === 'AccessDeniedException' || err.name === 'UnrecognizedClientException') {
         throw err;
       }
       this._warn(`Query for ${statusKey} failed: ${err.message}`);
       return [];
+    }
+  }
+
+  /**
+   * Check if an error is a credential/auth resolution error (SSO expired, profile not found, etc.)
+   * @param {Error} err
+   * @returns {boolean}
+   */
+  _isCredentialError(err) {
+    const name = err.name || '';
+    const msg = err.message || '';
+    return (
+      name === 'CredentialsProviderError' ||
+      name === 'ExpiredTokenException' ||
+      msg.includes('Could not resolve credentials') ||
+      msg.includes('expired') ||
+      msg.includes('security token')
+    );
+  }
+
+  /**
+   * Switch to session-only mode and clean up DDB resources.
+   */
+  _fallbackToSessionMode() {
+    this.sessionMode = true;
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+      this.refreshInterval = null;
+    }
+    this._destroyDDBClient();
+    if (this.broadcaster) {
+      this.broadcaster.broadcast('history', { records: this.sessionEvents });
     }
   }
 

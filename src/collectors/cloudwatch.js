@@ -150,12 +150,13 @@ export class CloudWatchCollector {
     const errorName = err.name || '';
     const errorMessage = err.message || '';
 
-    // Credentials expired
+    // Credentials expired or unresolvable
     if (
       errorName === 'ExpiredTokenException' ||
       errorName === 'CredentialsProviderError' ||
       errorMessage.includes('expired') ||
-      errorMessage.includes('security token')
+      errorMessage.includes('security token') ||
+      errorMessage.includes('Could not resolve credentials')
     ) {
       const profileHint = this.profile ? this.profile : '<profile>';
       this.broadcaster.broadcast('error', {
