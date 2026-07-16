@@ -67,6 +67,22 @@ export class Orchestrator {
     const discovery = this.getDiscovery();
     const { runtimes } = discovery;
 
+    // --- Credential pre-check ---
+    const credsValid = await this._validateCredentials();
+    if (!credsValid) {
+      const profileHint = config.profile || '<profile>';
+      console.error(`\n  ❌ AWS credentials are invalid or expired.`);
+      console.error(`     Run: aws sso login --profile ${profileHint}\n`);
+      console.error(`     Dashboard running in offline mode (no live data).\n`);
+      this.broadcaster.broadcast('error', {
+        source: 'orchestrator',
+        message: `AWS credentials expired. Run: aws sso login --profile ${profileHint}`,
+      });
+      // Start history in session-only mode so dashboard doesn't appear broken
+      this._ensureHistoryCollector();
+      return;
+    }
+
     // --- CloudWatch Collector ---
     const needsCloudWatch = panels.kiro || panels.supervisor || panels.errors || panels.pipelines;
     const deployedRuntimes = runtimes.filter((rt) => rt.logGroup);
@@ -209,6 +225,30 @@ export class Orchestrator {
   }
 
   // --- Private Helpers ---
+
+  /**
+   * Validate AWS credentials before starting collectors.
+   * Uses STS GetCallerIdentity as a lightweight check.
+   * @returns {Promise<boolean>} true if credentials are valid
+   */
+  async _validateCredentials() {
+    try {
+      const { STSClient, GetCallerIdentityCommand } = await import('@aws-sdk/client-sts');
+      const { fromIni } = await import('@aws-sdk/credential-providers');
+
+      const clientConfig = { region: this.config.region || 'us-east-1' };
+      if (this.config.profile) {
+        clientConfig.credentials = fromIni({ profile: this.config.profile });
+      }
+
+      const sts = new STSClient(clientConfig);
+      await sts.send(new GetCallerIdentityCommand({}));
+      sts.destroy();
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
 
   /**
    * Build log groups array, filtered by --runtime if specified.
