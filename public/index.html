@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚡ agentcore-pulse</title>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<style>
+:root {
+  --bg-primary: #0f1117;
+  --bg-secondary: #1a1b26;
+  --bg-panel: #1e2030;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --accent: #6366f1;
+  --success: #22c55e;
+  --warning: #eab308;
+  --error: #ef4444;
+  --border: #2e3348;
+  --phase-plan: #3b82f6;
+  --phase-build: #a855f7;
+  --phase-test: #22c55e;
+  --phase-review: #f97316;
+  --phase-document: #ec4899;
+  --phase-commit: #6b7280;
+  --phase-pr: #14b8a6;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-secondary); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #4a4f6a; }
+
+/* Layout */
+.app-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  grid-template-rows: 56px 1fr;
+  min-height: 100vh;
+}
+
+/* Header */
+.header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  z-index: 100;
+}
+
+.header-left { display: flex; align-items: center; gap: 8px; }
+.header-left h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
+.header-left .icon { font-size: 20px; }
+
+.mode-badge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.mode-badge.live { background: rgba(34,197,94,0.15); color: var(--success); border: 1px solid rgba(34,197,94,0.3); }
+.mode-badge.phase { background: rgba(59,130,246,0.15); color: #3b82f6; border: 1px solid rgba(59,130,246,0.3); }
+
+.header-right { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--text-secondary); }
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  display: inline-block;
+  transition: background 0.3s;
+}
+.status-dot.connected { background: var(--success); box-shadow: 0 0 6px var(--success); }
+.status-dot.disconnected { background: var(--error); box-shadow: 0 0 6px var(--error); }
+
+/* Sidebar */
+.sidebar {
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.sidebar h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  margin-top: 20px;
+}
+.sidebar h3:first-child { margin-top: 0; }
+
+.panel-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+  transition: color 0.2s;
+}
+.panel-toggle:hover { color: var(--accent); }
+.panel-toggle input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 14px; height: 14px;
+}
+
+.runtime-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.runtime-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Main content */
+.main-content {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+/* Sequence Diagram */
+.sequence-diagram {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+  min-height: 120px;
+  position: relative;
+}
+.sequence-diagram .empty-state {
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: center;
+  padding: 30px;
+}
+.sequence-columns {
+  display: flex;
+  justify-content: space-around;
+  position: relative;
+}
+.sequence-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 80px;
+}
+.sequence-column .label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  margin-bottom: 8px;
+  white-space: nowrap;
+}
+.sequence-column .line {
+  width: 2px;
+  height: 60px;
+  background: var(--border);
+}
+
+.seq-arrow {
+  position: absolute;
+  height: 2px;
+  background: var(--accent);
+  top: 50%;
+  animation: arrowFade 3s forwards;
+  pointer-events: none;
+}
+.seq-arrow::after {
+  content: '';
+  position: absolute;
+  right: 0; top: -4px;
+  border: 5px solid transparent;
+  border-left-color: var(--accent);
+}
+@keyframes arrowFade {
+  0% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Panels Grid */
+.panels-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+/* Panel Card */
+.panel-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.panel-card:hover {
+  border-color: #3d4260;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+.panel-card h2 {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.panel-card .empty-state {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-style: italic;
+  padding: 20px 0;
+  text-align: center;
+}
+
+/* Terminal style */
+.terminal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  max-height: 400px;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+.log-line { padding: 1px 0; word-break: break-all; }
+.log-line .ts { color: #6b7280; margin-right: 8px; }
+.log-line .source { color: var(--accent); margin-right: 8px; font-weight: 600; }
+.log-line.info .msg { color: var(--success); }
+.log-line.warn .msg { color: var(--warning); }
+.log-line.error .msg { color: var(--error); }
+
+/* Pipeline card */
+.pipeline-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+.pipeline-card .runtime-name { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+.pipeline-card .activity { color: var(--text-secondary); font-size: 12px; }
+.pipeline-card .elapsed {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 8px;
+  background: rgba(99,102,241,0.15);
+  color: var(--accent);
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Timeline */
+.timeline-bar {
+  display: flex;
+  height: 28px;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+  background: var(--bg-secondary);
+}
+.timeline-bar .segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: white;
+  min-width: 30px;
+  padding: 0 4px;
+  transition: flex-grow 0.3s;
+}
+.segment.plan { background: var(--phase-plan); }
+.segment.build { background: var(--phase-build); }
+.segment.test { background: var(--phase-test); }
+.segment.review { background: var(--phase-review); }
+.segment.document { background: var(--phase-document); }
+.segment.commit { background: var(--phase-commit); }
+.segment.pr { background: var(--phase-pr); }
+
+.timeline-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+
+/* Task pills */
+.task-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+.task-card .issue-title { font-weight: 600; font-size: 13px; margin-bottom: 8px; }
+.task-sequence { display: flex; flex-wrap: wrap; gap: 6px; }
+.task-pill {
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.task-pill.pending { background: #374151; color: #9ca3af; }
+.task-pill.in_progress { background: rgba(59,130,246,0.2); color: #60a5fa; animation: pulse 2s infinite; }
+.task-pill.pr_created { background: rgba(234,179,8,0.2); color: var(--warning); }
+.task-pill.merged { background: rgba(34,197,94,0.2); color: var(--success); }
+.task-pill.failed { background: rgba(239,68,68,0.2); color: var(--error); }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+/* Error cards */
+.error-card {
+  background: var(--bg-secondary);
+  border: 1px solid rgba(239,68,68,0.4);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.error-card:hover { border-color: var(--error); }
+.error-card .error-header { display: flex; justify-content: space-between; align-items: start; }
+.error-card .error-msg { color: var(--error); font-size: 13px; font-weight: 500; }
+.error-card .error-meta { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
+.error-card .error-full { margin-top: 8px; font-size: 12px; font-family: monospace; color: var(--text-secondary); white-space: pre-wrap; word-break: break-all; }
+
+/* History table */
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.history-table th {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.history-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(46,51,72,0.5);
+  color: var(--text-primary);
+}
+.history-table tr:hover td { background: rgba(99,102,241,0.05); }
+.status-badge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.status-badge.completed { background: rgba(34,197,94,0.2); color: var(--success); }
+.status-badge.active { background: rgba(59,130,246,0.2); color: #60a5fa; }
+.status-badge.failed { background: rgba(239,68,68,0.2); color: var(--error); }
+
+/* Responsive */
+@media (min-width: 901px) {
+  .history-panel { grid-column: span 2; }
+  .menu-toggle { display: none !important; }
+}
+@media (max-width: 900px) {
+  .app-layout { grid-template-columns: 1fr; }
+  .sidebar {
+    position: fixed; left: -260px; top: 56px; bottom: 0;
+    width: 240px; z-index: 50;
+    transition: left 0.3s;
+  }
+  .sidebar.open { left: 0; }
+  .panels-grid { grid-template-columns: 1fr; }
+  .menu-toggle { display: block !important; }
+}
+
+.menu-toggle {
+  background: none; border: none; color: var(--text-primary);
+  font-size: 20px; cursor: pointer; padding: 4px;
+}
+</style>
+</head>
+<body x-data="dashboard()" x-init="init()">
+<div class="app-layout">
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <button class="menu-toggle" @click="sidebarOpen = !sidebarOpen">☰</button>
+      <span class="icon">⚡</span>
+      <h1>agentcore-pulse</h1>
+    </div>
+    <div>
+      <span class="mode-badge" :class="mode" x-text="mode.toUpperCase()" x-show="mode"></span>
+    </div>
+    <div class="header-right">
+      <span class="status-dot" :class="connected ? 'connected' : 'disconnected'"></span>
+      <span x-text="connected ? 'Connected' : 'Disconnected'"></span>
+      <span style="margin-left:8px;color:var(--accent);" x-show="liveTailMinutes > 0">
+        🔴 <span x-text="liveTailMinutes + 'm'"></span>
+      </span>
+    </div>
+  </header>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" :class="{ open: sidebarOpen }">
+    <h3>Panels</h3>
+    <template x-for="panel in allPanels" :key="panel.id">
+      <label class="panel-toggle">
+        <input type="checkbox" :checked="panels[panel.id]" @change="panels[panel.id] = $event.target.checked">
+        <span x-text="panel.label"></span>
+      </label>
+    </template>
+
+    <h3>Discovered Runtimes</h3>
+    <template x-for="rt in runtimes" :key="rt.name">
+      <div class="runtime-item">
+        <span class="runtime-dot" :style="'background:' + (rt.status === 'active' ? 'var(--success)' : rt.status === 'idle' ? 'var(--warning)' : 'var(--text-secondary)')"></span>
+        <span x-text="rt.name"></span>
+      </div>
+    </template>
+    <div x-show="runtimes.length === 0" style="font-size:12px;color:var(--text-secondary);padding:8px 0;">
+      Waiting for config...
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Live Sequence Diagram -->
+    <div class="sequence-diagram">
+      <template x-if="runtimes.length === 0">
+        <div class="empty-state">⏳ Waiting for runtime discovery...</div>
+      </template>
+      <template x-if="runtimes.length > 0">
+        <div>
+          <div class="sequence-columns" x-ref="seqDiagram">
+            <template x-for="(rt, idx) in runtimes" :key="rt.name">
+              <div class="sequence-column">
+                <div class="label" x-text="rt.name"></div>
+                <div class="line"></div>
+              </div>
+            </template>
+          </div>
+          <template x-for="arrow in seqArrows" :key="arrow.id">
+            <div class="seq-arrow" :style="'left:' + arrow.left + ';width:' + arrow.width + ';' + (arrow.reverse ? 'transform:scaleX(-1);' : '')"></div>
+          </template>
+        </div>
+      </template>
+    </div>
+
+    <!-- Panels Grid -->
+    <div class="panels-grid">
+      <!-- 1. Pipelines -->
+      <div class="panel-card" x-show="panels.pipelines">
+        <h2>🚀 Pipelines</h2>
+        <template x-if="pipelines.length === 0">
+          <div class="empty-state">No active executions</div>
+        </template>
+        <template x-for="p in pipelines" :key="p.id">
+          <div class="pipeline-card">
+            <div class="runtime-name" x-text="p.runtime"></div>
+            <div class="activity" x-text="p.activity"></div>
+            <span class="elapsed" x-text="p.elapsed"></span>
+          </div>
+        </template>
+      </div>
+
+      <!-- 2. Kiro / Logs -->
+      <div class="panel-card" x-show="panels.kiro" style="grid-column: span 1;">
+        <h2>📟 Kiro / Logs</h2>
+        <div class="terminal" x-ref="kiroTerminal" @mouseenter="kiroAutoScroll = false" @mouseleave="kiroAutoScroll = true">
+          <template x-if="logs.length === 0">
+            <div class="empty-state" style="text-align:left;padding:0;">Waiting for events...</div>
+          </template>
+          <template x-for="log in logs" :key="log.id">
+            <div class="log-line" :class="log.level">
+              <span class="ts" x-text="log.ts"></span>
+              <span class="source" x-text="'[' + log.source + ']'"></span>
+              <span class="msg" x-text="log.msg"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- 3. Timeline -->
+      <div class="panel-card" x-show="panels.timeline">
+        <h2>📊 Timeline</h2>
+        <template x-if="timelines.length === 0">
+          <div class="empty-state">No phase data yet</div>
+        </template>
+        <template x-for="tl in timelines" :key="tl.id">
+          <div style="margin-bottom:12px;">
+            <div class="timeline-label" x-text="tl.label"></div>
+            <div class="timeline-bar">
+              <template x-for="seg in tl.segments" :key="seg.phase">
+                <div class="segment" :class="seg.phase" :style="'flex-grow:' + seg.duration">
+                  <span x-text="seg.phase + ' ' + seg.duration + 's'"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- 4. Tasks -->
+      <div class="panel-card" x-show="panels.tasks">
+        <h2>📋 Tasks</h2>
+        <template x-if="tasks.length === 0">
+          <div class="empty-state">No tasks tracked</div>
+        </template>
+        <template x-for="task in tasks" :key="task.issueId">
+          <div class="task-card">
+            <div class="issue-title" x-text="task.title"></div>
+            <div class="task-sequence">
+              <template x-for="t in task.items" :key="t.seq">
+                <span class="task-pill" :class="t.status.toLowerCase().replace(/ /g,'_')" x-text="'#' + t.seq + ' ' + t.status"></span>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- 5. Supervisor -->
+      <div class="panel-card" x-show="panels.supervisor">
+        <h2>🧠 Supervisor</h2>
+        <div class="terminal" x-ref="supervisorTerminal">
+          <template x-if="supervisorLogs.length === 0">
+            <div class="empty-state" style="text-align:left;padding:0;">Waiting for supervisor events...</div>
+          </template>
+          <template x-for="log in supervisorLogs" :key="log.id">
+            <div class="log-line" :class="log.level || 'info'">
+              <span class="ts" x-text="log.ts"></span>
+              <span class="msg" x-text="log.msg"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- 6. Errors -->
+      <div class="panel-card" x-show="panels.errors">
+        <h2>🚨 Errors</h2>
+        <template x-if="errors.length === 0">
+          <div class="empty-state">No errors — smooth sailing ✨</div>
+        </template>
+        <template x-for="err in errors" :key="err.id">
+          <div class="error-card" @click="err.expanded = !err.expanded">
+            <div class="error-header">
+              <div>
+                <div class="error-msg" x-text="err.short"></div>
+                <div class="error-meta" x-text="err.source + ' • ' + err.ts"></div>
+              </div>
+              <span style="color:var(--text-secondary);" x-text="err.expanded ? '▾' : '▸'"></span>
+            </div>
+            <div class="error-full" x-show="err.expanded" x-text="err.full"></div>
+          </div>
+        </template>
+      </div>
+
+      <!-- 7. History -->
+      <div class="panel-card history-panel" x-show="panels.history">
+        <h2>📜 History</h2>
+        <template x-if="history.length === 0">
+          <div class="empty-state">No history loaded</div>
+        </template>
+        <template x-if="history.length > 0">
+          <div style="overflow-x:auto;">
+            <table class="history-table">
+              <thead>
+                <tr><th>Time</th><th>Project</th><th>Issue</th><th>Status</th><th>Duration</th><th>PR#</th></tr>
+              </thead>
+              <tbody>
+                <template x-for="h in history" :key="h.id">
+                  <tr>
+                    <td x-text="h.time"></td>
+                    <td x-text="h.project"></td>
+                    <td x-text="h.issue"></td>
+                    <td><span class="status-badge" :class="h.status.toLowerCase()" x-text="h.status"></span></td>
+                    <td x-text="h.duration"></td>
+                    <td x-text="h.pr ? '#' + h.pr : '—'"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </template>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+function dashboard() {
+  return {
+    // Connection state
+    connected: false,
+    ws: null,
+    reconnectDelay: 1000,
+    reconnectTimer: null,
+    liveTailMinutes: 0,
+    liveTailInterval: null,
+    liveTailStart: null,
+    sidebarOpen: false,
+
+    // Config
+    mode: 'live',
+    runtimes: [],
+    gateway: null,
+
+    // Panel visibility
+    panels: {
+      pipelines: true,
+      kiro: true,
+      timeline: true,
+      tasks: true,
+      supervisor: true,
+      errors: true,
+      history: true
+    },
+
+    allPanels: [
+      { id: 'pipelines', label: 'Pipelines' },
+      { id: 'kiro', label: 'Kiro / Logs' },
+      { id: 'timeline', label: 'Timeline' },
+      { id: 'tasks', label: 'Tasks' },
+      { id: 'supervisor', label: 'Supervisor' },
+      { id: 'errors', label: 'Errors' },
+      { id: 'history', label: 'History' }
+    ],
+
+    // Data stores
+    logs: [],
+    supervisorLogs: [],
+    pipelines: [],
+    timelines: [],
+    tasks: [],
+    errors: [],
+    history: [],
+    seqArrows: [],
+
+    // Auto-scroll
+    kiroAutoScroll: true,
+    logIdCounter: 0,
+
+    init() {
+      this.connectWebSocket();
+      this.loadHistory();
+      this.liveTailStart = Date.now();
+      this.liveTailInterval = setInterval(() => {
+        if (this.connected) {
+          this.liveTailMinutes = Math.floor((Date.now() - this.liveTailStart) / 60000);
+        }
+      }, 1000);
+    },
+
+    connectWebSocket() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const url = `${protocol}//${location.host}/ws`;
+      
+      try {
+        this.ws = new WebSocket(url);
+      } catch(e) {
+        this.scheduleReconnect();
+        return;
+      }
+
+      this.ws.onopen = () => {
+        this.connected = true;
+        this.reconnectDelay = 1000;
+        this.liveTailStart = Date.now();
+      };
+
+      this.ws.onclose = () => {
+        this.connected = false;
+        this.scheduleReconnect();
+      };
+
+      this.ws.onerror = () => {
+        this.connected = false;
+      };
+
+      this.ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          this.routeMessage(msg);
+        } catch(e) {
+          console.warn('Failed to parse WS message:', e);
+        }
+      };
+    },
+
+    scheduleReconnect() {
+      if (this.reconnectTimer) return;
+      this.reconnectTimer = setTimeout(() => {
+        this.reconnectTimer = null;
+        this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30000);
+        this.connectWebSocket();
+      }, this.reconnectDelay);
+    },
+
+    routeMessage(msg) {
+      const { type, data, ts } = msg;
+      const timestamp = ts ? new Date(ts).toLocaleTimeString() : new Date().toLocaleTimeString();
+
+      switch(type) {
+        case 'config':
+          this.handleConfig(data);
+          break;
+        case 'log':
+          this.pushLog(data, timestamp);
+          break;
+        case 'phase':
+          this.pushLog({ level: 'info', source: data.runtime || 'system', msg: `Phase: ${data.phase} (${data.duration || 0}s)` }, timestamp);
+          this.updateTimeline(data);
+          break;
+        case 'error':
+          this.pushError(data, timestamp);
+          this.pushLog({ level: 'error', source: data.runtime || 'system', msg: data.message || data.msg }, timestamp);
+          break;
+        case 'invoke':
+          this.animateInvoke(data);
+          this.pushSupervisorLog({ msg: `→ invoke ${data.target} (${data.tool || 'unknown'})`, level: 'info' }, timestamp);
+          break;
+        case 'supervisor':
+          this.pushSupervisorLog(data, timestamp);
+          break;
+        case 'tasks':
+          this.tasks = Array.isArray(data) ? data : [data];
+          break;
+        case 'pipelines':
+          this.pipelines = Array.isArray(data) ? data : [data];
+          break;
+        case 'history':
+          this.history = Array.isArray(data) ? data : [data];
+          break;
+      }
+    },
+
+    handleConfig(data) {
+      if (data.runtimes) this.runtimes = data.runtimes;
+      if (data.panels) {
+        Object.keys(data.panels).forEach(k => {
+          if (k in this.panels) this.panels[k] = data.panels[k];
+        });
+      }
+      if (data.mode) this.mode = data.mode.toLowerCase();
+      if (data.gateway) this.gateway = data.gateway;
+    },
+
+    pushLog(data, ts) {
+      this.logs.push({
+        id: ++this.logIdCounter,
+        ts: ts,
+        level: data.level || 'info',
+        source: data.source || data.runtime || 'system',
+        msg: data.msg || data.message || ''
+      });
+      if (this.logs.length > 500) this.logs.splice(0, 100);
+      this.$nextTick(() => {
+        if (this.kiroAutoScroll && this.$refs.kiroTerminal) {
+          this.$refs.kiroTerminal.scrollTop = this.$refs.kiroTerminal.scrollHeight;
+        }
+      });
+    },
+
+    pushSupervisorLog(data, ts) {
+      this.supervisorLogs.push({
+        id: ++this.logIdCounter,
+        ts: ts,
+        level: data.level || 'info',
+        msg: data.msg || data.message || ''
+      });
+      if (this.supervisorLogs.length > 200) this.supervisorLogs.splice(0, 50);
+      this.$nextTick(() => {
+        if (this.$refs.supervisorTerminal) {
+          this.$refs.supervisorTerminal.scrollTop = this.$refs.supervisorTerminal.scrollHeight;
+        }
+      });
+    },
+
+    pushError(data, ts) {
+      const full = data.message || data.msg || '';
+      this.errors.unshift({
+        id: ++this.logIdCounter,
+        short: full.length > 100 ? full.substring(0, 100) + '...' : full,
+        full: full,
+        source: data.runtime || data.source || 'unknown',
+        ts: ts,
+        expanded: false
+      });
+      if (this.errors.length > 50) this.errors.pop();
+    },
+
+    updateTimeline(data) {
+      const execId = data.executionId || data.runtime || 'default';
+      let tl = this.timelines.find(t => t.id === execId);
+      if (!tl) {
+        tl = { id: execId, label: data.runtime || execId, segments: [] };
+        this.timelines.push(tl);
+      }
+      const existing = tl.segments.find(s => s.phase === data.phase);
+      if (existing) {
+        existing.duration = data.duration || existing.duration;
+      } else {
+        tl.segments.push({ phase: data.phase, duration: data.duration || 1 });
+      }
+    },
+
+    animateInvoke(data) {
+      if (this.runtimes.length < 2) return;
+      const sourceIdx = this.runtimes.findIndex(r => r.name === data.source);
+      const targetIdx = this.runtimes.findIndex(r => r.name === data.target);
+      if (sourceIdx === -1 || targetIdx === -1) return;
+
+      const colWidth = 100 / this.runtimes.length;
+      const leftPercent = Math.min(sourceIdx, targetIdx) * colWidth + colWidth / 2;
+      const widthPercent = Math.abs(targetIdx - sourceIdx) * colWidth;
+
+      const arrow = {
+        id: ++this.logIdCounter,
+        left: leftPercent + '%',
+        width: widthPercent + '%',
+        reverse: sourceIdx > targetIdx
+      };
+      this.seqArrows.push(arrow);
+      setTimeout(() => {
+        this.seqArrows = this.seqArrows.filter(a => a.id !== arrow.id);
+      }, 3200);
+    },
+
+    async loadHistory() {
+      try {
+        const res = await fetch('/api/history');
+        if (res.ok) {
+          const data = await res.json();
+          this.history = Array.isArray(data) ? data : (data.items || []);
+        }
+      } catch(e) {
+        // History endpoint not available yet — that's fine
+      }
+    }
+  };
+}
+</script>
+</body>
+</html>
