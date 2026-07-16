@@ -202,7 +202,22 @@ export class DynamoDBCollector {
     const name = err.name || err.constructor?.name || '';
     const message = err.message || String(err);
 
-    if (name === 'ResourceNotFoundException' || message.includes('resource not found') || message.includes('table') && message.includes('not found')) {
+    // Credential errors (SSO expired, profile not found)
+    if (
+      name === 'CredentialsProviderError' ||
+      name === 'ExpiredTokenException' ||
+      message.includes('Could not resolve credentials') ||
+      message.includes('security token') ||
+      message.includes('expired')
+    ) {
+      const profileHint = this.profile || '<profile>';
+      console.error(`[dynamodb] AWS credentials invalid. Run: aws sso login --profile ${profileHint}`);
+      this.broadcaster.broadcast('error', {
+        source: 'dynamodb',
+        message: `AWS credentials expired. Run: aws sso login --profile ${profileHint}`,
+      });
+      this.stop();
+    } else if (name === 'ResourceNotFoundException' || message.includes('resource not found') || message.includes('table') && message.includes('not found')) {
       console.error(`[dynamodb] Table "${this.tableName}" not found. Stopping poller.`);
       this.broadcaster.broadcast('error', {
         source: 'dynamodb',
